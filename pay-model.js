@@ -25,5 +25,9 @@
   const eligibleAmount=cents(eligibleEarnings*percent/100);
   return {eligibleAmount,available:cents(Math.max(0,eligibleAmount-withdrawn))};
  }
- const api={calculatePay,estimateAvailability,defaults,taxNames};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PayModel=api;
+ function hoursFromParts(hours,minutes){
+  if(!Number.isInteger(hours)||!Number.isInteger(minutes)||hours<0||minutes<0||minutes>59||hours+minutes/60>168)throw Error('Enter whole hours and 0–59 minutes, up to 168 total hours.');
+  return hours+minutes/60;
+ }
+ const api={calculatePay,estimateAvailability,hoursFromParts,defaults,taxNames};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PayModel=api;
 })(globalThis);

@@ -21,3 +21,12 @@ assert.equal(estimateAvailability(232.19,50,150.92).available,0);
 assert.equal(estimateAvailability(232.19,0,0).available,0);
 assert.throws(()=>estimateAvailability(232.19,101,0));
 console.log('Variable eligibility checks passed; no fixed eligibility rate and no impact on weekly net pay.');
+
+const {hoursFromParts}=require('./pay-model.js');
+assert.equal(hoursFromParts(8,41),8+41/60);
+assert.throws(()=>hoursFromParts(8.41,0));assert.throws(()=>hoursFromParts(8,60));assert.throws(()=>hoursFromParts(168,1));
+assert.equal(calculatePay({...base,hours:hoursFromParts(8,41)}).gross,232.28);
+assert.equal(estimateAvailability(232.19,65,150.92).eligibleAmount,150.92);
+assert.equal(estimateAvailability(232.19,65,150.92).available,0);
+assert.equal(estimateAvailability(232.28,65,150.92).eligibleAmount,150.98);
+console.log('Hours/minutes and exact employer-earnings reconciliation checks passed.');
