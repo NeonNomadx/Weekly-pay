@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "My Weekly Pay",
+  "short_name": "Weekly Pay",
+  "description": "Estimate weekly take-home pay and Anytime Pay eligibility.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#100e22",
+  "theme_color": "#201b35",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "icons/app-icon-192-v1.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/app-icon-512-v1.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
