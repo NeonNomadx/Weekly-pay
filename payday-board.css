@@ -1,0 +1,27 @@
+/* Decorative game table: fixed layers never affect document or input layout. */
+body{isolation:isolate}
+.payday-table{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;contain:strict}
+.payday-table *{pointer-events:none}
+.board-art{position:absolute;left:50%;top:50%;width:min(1120px,115vw);height:auto;aspect-ratio:1;max-width:none;transform:translate(-50%,-50%) rotate(-12deg);opacity:.28;box-shadow:0 30px 90px #0007;border-radius:14px}
+.board-shade{position:absolute;inset:0;background:radial-gradient(ellipse at center,#100e225e 15%,#100e221f 70%);pointer-events:none}
+.dice-scene{--die:60px;position:absolute;width:var(--die);height:var(--die);perspective:600px}
+.dice-one{left:max(35px,calc(50% - 490px));top:27%}
+.dice-two{--die:68px;right:max(35px,calc(50% - 490px));top:63%}
+.dice-scene:after{content:"";position:absolute;left:-15%;right:-15%;bottom:-20px;height:14px;background:radial-gradient(ellipse,#08041370,transparent 70%);z-index:-1}
+.rolling-die{position:relative;width:100%;height:100%;transform-style:preserve-3d;transform:rotateX(-22deg) rotateY(28deg) rotateZ(-8deg);animation:payday-dice-roll 11s ease-in-out infinite;will-change:transform}
+.dice-two .rolling-die{animation-delay:-5.5s}
+.die-face{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:4%;padding:16%;border:1px solid #dacbe8;border-radius:9px;background:#f5effc;box-shadow:inset 0 0 8px #a280ba45;backface-visibility:hidden}
+.die-face.back{background:#e3d4f0}.die-face.right{background:#e3d4f0}.die-face.top{background:#fffafe}.die-face.bottom{background:#c9b7dc}.die-face.left{background:#d9c8e8}
+.die-face.front{transform:translateZ(calc(var(--die)/2))}.die-face.back{transform:rotateY(180deg) translateZ(calc(var(--die)/2))}.die-face.right{transform:rotateY(90deg) translateZ(calc(var(--die)/2))}.die-face.left{transform:rotateY(-90deg) translateZ(calc(var(--die)/2))}.die-face.top{transform:rotateX(90deg) translateZ(calc(var(--die)/2))}.die-face.bottom{transform:rotateX(-90deg) translateZ(calc(var(--die)/2))}
+.die-pip{width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#746087,#332444 72%);box-shadow:inset 0 1px 2px #160b2880}
+@keyframes payday-dice-roll{
+  0%,14%{transform:translate3d(0,0,0) rotateX(-22deg) rotateY(28deg) rotateZ(-8deg)}
+  23%{transform:translate3d(8px,-19px,0) rotateX(185deg) rotateY(260deg) rotateZ(100deg)}
+  34%,53%{transform:translate3d(0,0,0) rotateX(338deg) rotateY(478deg) rotateZ(8deg)}
+  63%{transform:translate3d(-6px,-15px,0) rotateX(530deg) rotateY(600deg) rotateZ(188deg)}
+  77%,100%{transform:translate3d(0,0,0) rotateX(698deg) rotateY(748deg) rotateZ(352deg)}
+}
+.money-paused .rolling-die,.page-hidden .rolling-die,.page-hidden .falling-bill{animation-play-state:paused!important}
+@media(max-width:1000px){.dice-one{--die:48px;left:22px;top:25%}.dice-two{--die:50px;right:20px;top:58%}.board-art{width:118vw;opacity:.22}}
+@media(max-width:700px){.board-art{width:132vw;top:48%;opacity:.19;transform:translate(-50%,-50%) rotate(-13deg)}.dice-one{--die:42px;left:auto;right:24px;top:140px}.dice-two{--die:36px;right:73px;top:200px}.die-face{border-radius:6px}.dice-scene:after{bottom:-14px;height:9px}.board-shade{background:radial-gradient(ellipse at center,#100e2226,#100e2238)}}
+@media(prefers-reduced-motion:reduce){.rolling-die{animation:none!important;will-change:auto}}
