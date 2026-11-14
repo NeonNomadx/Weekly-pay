@@ -1,10 +1,10 @@
 const assert=require('node:assert/strict');const {calculatePay,defaults}=require('./pay-model.js');
-const base={hours:40,rate:26.75,withdrawn:0,multiplier:1.5,...defaults};
+const base={hours:40,rate:26.75,shiftDiffRate:2,overtimeBaseRate:37.12,overtimeShiftDiffRate:3,withdrawn:0,multiplier:1.5,...defaults};
 const sample=calculatePay({...base,grossOverride:755.16,withdrawn:566.38});
 assert.equal(sample.totalTaxes,92.38);assert.equal(sample.retirement,22.65);assert.equal(sample.incomeWages,695.13);assert.equal(sample.net,599.27);assert.equal(sample.deposit,32.89);
 const noTransfers=calculatePay({...base,grossOverride:755.16});assert.equal(noTransfers.net,sample.net);assert.equal(noTransfers.deposit,599.27);
 const noRetirement=calculatePay({...base,grossOverride:755.16,retirementPercent:0});assert.equal(noRetirement.taxes.socialSecurity,sample.taxes.socialSecurity);assert.equal(noRetirement.taxes.medicare,sample.taxes.medicare);assert(noRetirement.taxes.state>sample.taxes.state);
-const overtime=calculatePay({...base,hours:45});assert.equal(overtime.overtime,200.63);assert.equal(overtime.gross,1270.63);
+const overtime=calculatePay({...base,hours:45});assert.equal(overtime.overtime,200.60);assert.equal(overtime.gross,1270.60);
 const zero=calculatePay({...base,hours:0});assert.equal(zero.net,0);assert.equal(zero.benefits,0);assert.equal(zero.retirement,0);assert.equal(zero.totalTaxes,0);
 const federal=calculatePay({...base,federal:20});assert.equal(federal.net,Math.round((calculatePay(base).net-20)*100)/100);
 const excess=calculatePay({...base,withdrawn:10000});assert.equal(excess.deposit,0);assert(excess.shortfall>0);
@@ -53,3 +53,19 @@ assert.throws(()=>calculateAnytimePay(-1,24.75,2,0.65));
 const split=calculatePay({...base,hours:8.68,rate:26.75,shiftDiffRate:2});assert.equal(split.gross,232.19);
 assert.equal(estimateAvailability(split.gross,65,150.92).eligibleAmount,calculateAnytimePay(8.68,24.75,2,0.65));
 console.log('Requested split-pay formula and ceiling rules passed, including exact-penny and zero cases.');
+
+// Payroll OT uses exact entered hourly rates, with separately rounded earnings lines.
+const forty=calculatePay(base);assert.equal(forty.overtime,0);assert.equal(forty.gross,1070);
+const oneOver=calculatePay({...base,hours:41});assert.equal(oneOver.overtime,40.12);assert.equal(oneOver.gross,1110.12);
+const fifty=calculatePay({...base,hours:50});assert.equal(fifty.overtimeBasePay,371.20);assert.equal(fifty.overtimeShiftPay,30);assert.equal(fifty.overtime,401.20);assert.equal(fifty.gross,1471.20);
+for(const [minutes,ot,gross] of [[1,.80,1070.80],[2,1.20,1071.20],[3,2.01,1072.01]]){const r=calculatePay({...base,hours:hoursFromParts(40,minutes)});assert.equal(r.overtime,ot);assert.equal(r.gross,gross);}
+const before=calculatePay({...base,hours:34.37}),after=calculatePay({...base,hours:42.32});
+assert.equal(after.overtimeHours,2.32);assert.equal(after.overtimeBasePay,86.12);assert.equal(after.overtimeShiftPay,6.96);assert.equal(after.overtime,93.08);assert.equal(after.gross,1163.08);
+const dailyGross=Math.round((after.gross-before.gross)*100)/100;assert.equal(dailyGross,243.68);assert.equal(estimateAvailability(dailyGross,65,0).eligibleAmount,158.40);
+assert.equal(calculatePay({...base,hours:45,withdrawn:150.92}).net,overtime.net);assert.equal(Math.round((overtime.net-calculatePay({...base,hours:45,withdrawn:150.92}).deposit)*100),15092);
+assert.equal(calculatePay({...base,hours:45,overtimeBaseRate:40,overtimeShiftDiffRate:4}).overtime,220);
+// Preserve multiplier behavior solely for older model callers that omit explicit payroll rates.
+assert.equal(calculatePay({...base,hours:45,overtimeBaseRate:null,overtimeShiftDiffRate:null}).overtime,200.63);
+for(const value of [-1,0,NaN,Infinity,3000.01])assert.throws(()=>calculatePay({...base,overtimeBaseRate:value}));
+for(const value of [-1,NaN,Infinity,3000.01])assert.throws(()=>calculatePay({...base,overtimeShiftDiffRate:value}));
+console.log('Exact overtime rates, 40-hour boundaries, split OT lines, screenshot increment $243.68 -> $158.40, overrides and validation passed.');

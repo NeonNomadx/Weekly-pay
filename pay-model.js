@@ -21,13 +21,19 @@
  const defaults={benefits:37.38,retirementPercent:3,legal:3.48,federal:0};
  const taxNames={socialSecurity:'Social Security',medicare:'Medicare',state:'DE state income tax',city:'Wilmington income tax',family:'DE paid family leave',medical:'DE paid medical leave',parental:'DE paid parental leave',federal:'Federal income tax'};
  function calculatePay(input){
-  const {hours,rate,withdrawn,multiplier,benefits,retirementPercent,legal,federal,grossOverride=null,shiftDiffRate=0}=input;
+  const {hours,rate,withdrawn,multiplier,benefits,retirementPercent,legal,federal,grossOverride=null,shiftDiffRate=0,overtimeBaseRate=null,overtimeShiftDiffRate=null}=input;
   if(![hours,rate,withdrawn,multiplier,benefits,retirementPercent,legal,federal].every(Number.isFinite)||hours<0||hours>168||rate<=0||rate>1000||withdrawn<0||multiplier<1||multiplier>3||benefits<0||retirementPercent<0||retirementPercent>100||legal<0||federal<0||!Number.isFinite(shiftDiffRate)||shiftDiffRate<0||shiftDiffRate>rate||(grossOverride!==null&&(!Number.isFinite(grossOverride)||grossOverride<0)))throw Error('Check your entries: use 0–168 hours, positive hourly pay, 0–100% retirement, and nonnegative dollar amounts.');
+  if((overtimeBaseRate!==null&&(!Number.isFinite(overtimeBaseRate)||overtimeBaseRate<=0||overtimeBaseRate>3000))||(overtimeShiftDiffRate!==null&&(!Number.isFinite(overtimeShiftDiffRate)||overtimeShiftDiffRate<0||overtimeShiftDiffRate>3000)))throw Error('Use a positive overtime base rate and a nonnegative overtime shift differential, up to $3,000 per hour.');
   // Match the supplied payroll example: convert time to hundredths of a paid hour before earnings.
   const paidHours=cents(hours);
-  const regularHours=Math.min(paidHours,40),overtimeHours=Math.max(0,paidHours-40),baseRate=rate-shiftDiffRate;
+  const regularHours=Math.min(paidHours,40),overtimeHours=cents(Math.max(0,paidHours-40)),baseRate=rate-shiftDiffRate;
   const regular=cents(cents(regularHours*baseRate)+cents(regularHours*shiftDiffRate));
-  const overtime=cents(cents(overtimeHours*baseRate*multiplier)+cents(overtimeHours*shiftDiffRate*multiplier));
+  // Explicit payroll rates avoid multiplying the displayed base rate into a fractional-cent OT rate.
+  // The multiplier remains a fallback for existing callers that do not supply payroll rates.
+  const appliedOvertimeBaseRate=overtimeBaseRate===null?baseRate*multiplier:overtimeBaseRate;
+  const appliedOvertimeShiftRate=overtimeShiftDiffRate===null?shiftDiffRate*multiplier:overtimeShiftDiffRate;
+  const overtimeBasePay=cents(overtimeHours*appliedOvertimeBaseRate),overtimeShiftPay=cents(overtimeHours*appliedOvertimeShiftRate);
+  const overtime=cents(overtimeBasePay+overtimeShiftPay);
   const gross=grossOverride===null?cents(regular+overtime):cents(grossOverride);
   const appliedBenefits=gross>0?cents(benefits):0,retirement=cents(gross*retirementPercent/100),appliedLegal=gross>0?cents(legal):0;
   const ficaWages=cents(Math.max(0,gross-appliedBenefits)),incomeWages=cents(Math.max(0,ficaWages-retirement));
@@ -36,7 +42,7 @@
   taxes.federal=gross>0?cents(federal):0;
   const totalTaxes=cents(Object.values(taxes).reduce((sum,x)=>sum+x,0));
   const rawNet=cents(gross-appliedBenefits-retirement-appliedLegal-totalTaxes),net=Math.max(0,rawNet);
-  return {paidHours,regular,overtime,gross,taxes,totalTaxes,benefits:appliedBenefits,retirement,legal:appliedLegal,ficaWages,incomeWages,net,deposit:cents(Math.max(0,net-withdrawn)),shortfall:cents(Math.max(0,withdrawn-net)),unfunded:Math.max(0,-rawNet),actualGross:grossOverride!==null};
+  return {paidHours,regularHours,overtimeHours,regular,overtime,overtimeBasePay,overtimeShiftPay,overtimeBaseRate:appliedOvertimeBaseRate,overtimeShiftDiffRate:appliedOvertimeShiftRate,gross,taxes,totalTaxes,benefits:appliedBenefits,retirement,legal:appliedLegal,ficaWages,incomeWages,net,deposit:cents(Math.max(0,net-withdrawn)),shortfall:cents(Math.max(0,withdrawn-net)),unfunded:Math.max(0,-rawNet),actualGross:grossOverride!==null};
  }
  function estimateAvailability(eligibleEarnings,percent,withdrawn){
   if(![eligibleEarnings,percent,withdrawn].every(Number.isFinite)||eligibleEarnings<0||percent<0||percent>100||withdrawn<0)throw Error('Use nonnegative eligible earnings and transfers, and eligibility from 0 to 100%.');
