@@ -1,27 +1,34 @@
 # Weekly Pay
 
-Static personal weekly-pay estimator, served directly by GitHub Pages.
+Static personal pay estimator for GitHub Pages. Run `python3 -m http.server 8050` for local use. No keys, payroll connection, or financial-entry storage.
 
-Run locally with `python3 -m http.server 8050`. No keys, dependencies or build step are required. Run calculation checks with `node pay-model.test.cjs`.
+## Checks
 
-## Estimation model
+- `node withholding.test.cjs`
+- `node pay-model.test.cjs`
 
-- Enter time in separate whole-hours and minutes fields (8 hours 41 minutes = 8 + 41/60 hours). Paid hours are then rounded to hundredths before calculating earnings, matching the supplied payroll example: 8.68 × $26.75 = $232.19; 65% is $150.93 after rounding eligibility up to the next cent. This is a calibration to the example; payroll timing or other adjustments may differ.
-- Enter the regular hourly rate ($24.75) and shift differential ($2) separately, totaling $26.75. Each earnings component is rounded to cents before summing. Overtime starts after 40 worked hours using the editable payroll rates: $37.12 base plus $3.00 shift differential ($40.12/hour total). Both overtime earnings components are rounded separately to cents; the UI does not derive the base rate as $24.75 × 1.5 = $37.125.
-- Weekly pre-tax benefits default to $37.38, traditional 401(k) to 3% of gross, and the after-tax legal plan to $3.48. Settings are editable.
-- Taxes use itemized effective rates calibrated to the recent paycheck, not official withholding tables. Estimated state taxable pay also subtracts traditional 401(k). Social Security/Medicare estimates do not subtract traditional 401(k).
-- The starting federal withholding input is $0 because none was shown on the reference check. This can change with earnings and payroll settings; edit the expected weekly amount when known. Zero withholding does not mean zero annual tax.
-- Use optional actual gross to reconcile paystubs with leave/premiums or payroll line rounding. Hours are ignored in that mode.
-- Anytime Pay is money received early. Subtract actual transfers for the same pay period once from weekly take-home to estimate the remaining deposit. Available balance and eligibility percentage are not additional deductions.
-- One editable Anytime Pay eligibility percentage uses calculated gross earnings by default. An optional Amazon eligible-earnings override lives in settings for payroll precision differences. Separate results show total eligible early pay, transfers already received, and remaining transfer availability. Eligibility never changes weekly net pay; Amazon may apply additional limits or use unrounded values.
-- Paychecks, tax brackets, taxable benefits, year-to-date thresholds, deduction arrears and payroll rounding can differ from these projections.
+## Worked time, PTO, and earnings
 
-No uploaded screenshots, names, addresses, account details or payroll identifiers are stored here. Form entries stay in memory and reset when reloaded. The design and money animation remain intact.
+Enter actually worked whole hours/minutes separately from decimal PTO hours. The 40-hour overtime threshold uses worked time only. Payroll earnings units can count base and shift components twice and are not worked hours.
 
-## Anytime Pay function
+Rates start at regular base $24.75, regular shift $2.00, overtime base **$37.125**, overtime shift $3.00, and PTO shift $2.00. Retain three-decimal rate precision; round each earnings amount to cents. PTO receives regular base pay and the entered PTO shift differential. The old multiplier remains only a model fallback when explicit overtime rates are omitted.
 
-`calculateAnytimePay(regular_hours, regular_rate, shift_diff_rate, eligible_percent)` accepts decimal paid hours and an eligibility fraction such as `0.65`. It rounds regular earnings and shift earnings separately, sums them, then applies `ceil(raw_eligible_earnings * 100) / 100`. Floating-point noise at exact pennies is normalized. The UI percentage remains a single 0–100 input. Example: `calculateAnytimePay(8.68, 24.75, 2, 0.65)` returns `150.93`. A completed transfer of `150.92` is a separate fact and leaves an estimated eligible balance of `0.01`; Amazon’s actual transfer limits still apply.
+The reference statement is reproduced from 46 hours 5 minutes worked (46.08 payroll hours) plus 2 PTO hours: regular base990.00, overtime base225.72, regular/PTO shift84.00, overtime shift18.24, PTO base49.50; gross $1,367.46. No arbitrary adjustment is subtracted from gross.
 
-## Overtime payroll rates
+## Deductions and withholding
 
-The UI passes `overtimeBaseRate` and `overtimeShiftDiffRate` explicitly to `calculatePay`. The old multiplier is retained only as a fallback for model callers that omit these fields. At 45 hours, overtime is $185.60 base + $15.00 shift = $200.60, and gross pay is $1,270.60. A daily increment from 34.37 to 42.32 weekly hours adds $139.34 regular base + $11.26 regular shift + $86.12 overtime base + $6.96 overtime shift = $243.68; 65% eligibility rounds up to $158.40. Existing withholding estimates, actual-gross overrides, and completed-transfer handling are unchanged.
+Pre-tax benefits start at $37.38/week (dental3.46 + medical30.23 + vision3.69). Traditional401(k) starts at 3% of each week's gross. Additional after-tax deductions start at **zero**; Anytime Pay is entered separately and deducted only once from total net pay.
+
+Federal estimates use the [2026 IRS Publication15-T automated percentage method](https://www.irs.gov/publications/p15t), 52 weekly periods and 2020-or-later W-4 assumptions. Head of household comes from the reference statement. The **$2,200 annual credit adjustment is inferred to match the supplied checks**; it is not a verified W-4 election or dependent count. Confirm/update it using W-4 Step 3. The Step 2 checkbox is editable; other W-4 income/deduction adjustments are not modeled. A blank federal override uses the formula; an explicit zero intentionally overrides federal withholding to zero.
+
+Delaware uses the [official employer annualized computation](https://revenue.delaware.gov/employers-guide-withholding-regulations-employers-duties/), $3,250 individual deduction ($6,500 married jointly) and an editable annual withholding credit starting at $110. Federal/DE taxable earnings deduct pre-tax benefits and traditional 401(k). Social Security, Medicare, city tax and paid-leave contributions use effective rates from the latest reference check, against gross less pre-tax benefits. They remain calibrated estimates; unmodeled taxable benefits, year-to-date limits and payroll timing can affect future checks.
+
+Reference outcomes: taxable income695.13 => federal0.00, DE25.56; taxable income1289.06 => federal49.84, DE59.29. At reference gross $1,367.46, total taxes232.90 (17.03%), benefits $37.38 and retirement $41.02 leave1056.16 before transfers. Transfers824.18 leave the payday deposit **231.98**.
+
+## Paystub reconciliation and early pay
+
+Optional actual gross, total taxes, and401(k) amounts replace the corresponding estimates for checking an issued statement. When actual taxes are entered, the UI shows that reported total instead of presenting an invented itemized breakdown. Historical statements can be reconciled using their own actual taxes and deductions; current calibration is not forced onto past checks.
+
+Main result is money left for payday after completed transfers. Total take-home including money already received is secondary. Anytime Pay availability is separate: gross/eligible earnings × the current eligibility percentage, rounded upward to cents, minus completed transfers. PTO eligibility and Amazon timing/limits can differ, so an eligible-earnings override is retained. Eligibility never changes gross pay or tax calculations.
+
+`calculateAnytime Pay(regular_hours,regular_rate,shift_diff_rate,eligible_percent)` retains the original regular-pay helper contract (fraction such as0.65); the UI uses the full earnings model including overtime/PTO. No paystub images, names, addresses, payroll/account identifiers are stored in this repository.

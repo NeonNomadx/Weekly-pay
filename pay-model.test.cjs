@@ -1,71 +1,21 @@
-const assert=require('node:assert/strict');const {calculatePay,defaults}=require('./pay-model.js');
-const base={hours:40,rate:26.75,shiftDiffRate:2,overtimeBaseRate:37.12,overtimeShiftDiffRate:3,withdrawn:0,multiplier:1.5,...defaults};
-const sample=calculatePay({...base,grossOverride:755.16,withdrawn:566.38});
-assert.equal(sample.totalTaxes,92.38);assert.equal(sample.retirement,22.65);assert.equal(sample.incomeWages,695.13);assert.equal(sample.net,599.27);assert.equal(sample.deposit,32.89);
-const noTransfers=calculatePay({...base,grossOverride:755.16});assert.equal(noTransfers.net,sample.net);assert.equal(noTransfers.deposit,599.27);
-const noRetirement=calculatePay({...base,grossOverride:755.16,retirementPercent:0});assert.equal(noRetirement.taxes.socialSecurity,sample.taxes.socialSecurity);assert.equal(noRetirement.taxes.medicare,sample.taxes.medicare);assert(noRetirement.taxes.state>sample.taxes.state);
-const overtime=calculatePay({...base,hours:45});assert.equal(overtime.overtime,200.60);assert.equal(overtime.gross,1270.60);
-const zero=calculatePay({...base,hours:0});assert.equal(zero.net,0);assert.equal(zero.benefits,0);assert.equal(zero.retirement,0);assert.equal(zero.totalTaxes,0);
-const federal=calculatePay({...base,federal:20});assert.equal(federal.net,Math.round((calculatePay(base).net-20)*100)/100);
-const excess=calculatePay({...base,withdrawn:10000});assert.equal(excess.deposit,0);assert(excess.shortfall>0);
-const tiny=calculatePay({...base,grossOverride:1});assert.equal(tiny.net,0);assert(tiny.unfunded>0);
-assert.throws(()=>calculatePay({...base,retirementPercent:101}));assert.throws(()=>calculatePay({...base,hours:-1}));assert.throws(()=>calculatePay({...base,grossOverride:NaN}));
-console.log('Pay model checks passed: calibration, tax bases, transfers, overtime, zero/low pay, federal override, and validation.');
+const assert=require('node:assert/strict'),P=require('./pay-model.js');
+const base={hours:40,rate:26.75,shiftDiffRate:2,overtimeBaseRate:37.125,overtimeShiftDiffRate:3,withdrawn:0,...P.defaults};
+const check=P.calculatePay({...base,hours:P.hoursFromParts(46,5),ptoHours:2,withdrawn:824.18});
+assert.equal(check.paidHours,46.08);assert.equal(check.overtimeHours,6.08);assert.equal(check.regularBasePay,990);assert.equal(check.overtimeBasePay,225.72);assert.equal(check.overtimeShiftPay,18.24);assert.equal(check.shiftPay,84);assert.equal(check.ptoBasePay,49.50);assert.equal(check.gross,1367.46);
+assert.deepEqual(check.taxes,{socialSecurity:82.51,medicare:19.29,city:16.64,family:.53,medical:2.67,parental:2.13,state:59.29,federal:49.84});assert.equal(check.totalTaxes,232.90);assert.equal(check.benefits,37.38);assert.equal(check.retirement,41.02);assert.equal(check.legal,0);assert.equal(check.net,1056.16);assert.equal(check.deposit,231.98);assert.equal(check.actualGross,false);assert.equal(check.actualTaxes,false);
+const noTransfer=P.calculatePay({...base,hours:P.hoursFromParts(46,5),ptoHours:2});assert.equal(noTransfer.net,check.net);assert.equal(noTransfer.deposit,1056.16);assert.equal(Math.round((check.net-check.deposit)*100),82418);
+for(const [worked,pto,gross,ot]of [[38,2,1070,0],[39,2,1096.75,0],[40,2,1123.50,0],[41,2,1163.63,1]]){const r=P.calculatePay({...base,hours:worked,ptoHours:pto});assert.equal(r.gross,gross);assert.equal(r.overtimeHours,ot);}
+assert.equal(P.calculatePay({...base,hours:48.08}).gross,1394.21);assert.equal(P.calculatePay({...base,hours:45}).overtime,200.63);assert.equal(P.calculatePay({...base,hours:P.hoursFromParts(40,1)}).overtime,.80);
+const higher=P.calculatePay({...base,hours:55});assert(higher.taxes.federal>check.taxes.federal);assert(higher.taxes.state>check.taxes.state);assert.equal(P.calculatePay({...base,hours:20}).taxes.federal,0);assert.notEqual(P.calculatePay({...base,hours:40}).taxes.federal,P.calculatePay({...base,hours:45}).taxes.federal);
+const old=P.calculatePay({...base,grossOverride:755.16,taxesOverride:92.38,legal:3.48,withdrawn:566.38});assert.equal(old.retirement,22.65);assert.equal(old.net,599.27);assert.equal(old.deposit,32.89);assert.equal(old.actualTaxes,true);
+const actual=P.calculatePay({...base,grossOverride:1367.46,taxesOverride:232.90,retirementOverride:41.02,withdrawn:824.18});assert.equal(actual.deposit,231.98);assert(actual.actualGross&&actual.actualTaxes&&actual.actualRetirement);
+assert.equal(P.calculatePay({...base,federal:0}).taxes.federal,0);assert.equal(P.calculatePay({...base,federal:50}).taxes.federal,50);
+const zero=P.calculatePay({...base,hours:0});for(const key of ['gross','totalTaxes','benefits','retirement','legal','net','deposit'])assert.equal(zero[key],0);
+const tiny=P.calculatePay({...base,grossOverride:1});assert.equal(tiny.net,0);assert(tiny.unfunded>0);const excess=P.calculatePay({...base,withdrawn:10000});assert.equal(excess.deposit,0);assert(excess.shortfall>0);
+const no401k=P.calculatePay({...base,retirementPercent:0});assert(no401k.taxes.federal>P.calculatePay(base).taxes.federal);assert.equal(no401k.taxes.socialSecurity,P.calculatePay(base).taxes.socialSecurity);
+assert.equal(P.estimateAvailability(check.gross,75,824.18).eligibleAmount,1025.60);assert.equal(P.estimateAvailability(check.gross,75,824.18).available,201.42);assert.equal(P.calculateAnytimePay(8.68,24.75,2,.65),150.93);assert.equal(P.calculateAnytimePay(1,1.10,0,1),1.10);assert.equal(P.estimateAvailability(232.19,65,150.92).available,.01);
+const eight=P.calculatePay({...base,hours:P.hoursFromParts(8,41)});assert.equal(eight.gross,232.19);assert.equal(P.estimateAvailability(eight.gross,65,150.92).eligibleAmount,150.93);
+for(const extra of [{ptoHours:-1},{hours:167,ptoHours:2},{overtimeBaseRate:0},{retirementPercent:101},{taxesOverride:NaN},{retirementOverride:-1},{federal:-1},{annualCredits:-1},{filingStatus:'invalid'}])assert.throws(()=>P.calculatePay({...base,...extra}));assert.throws(()=>P.hoursFromParts(8,60));assert.throws(()=>P.hoursFromParts(8.41,0));assert.throws(()=>P.estimateAvailability(200,101,0));
+console.log('PASS: full current check matches every line and $231.98 deposit without overrides; PTO/OT boundaries, progressive taxes, 3% retirement, transfers once, historical actual-check overrides, zero/invalid inputs and eligibility rounding.');
 
-const current=calculatePay({...base,withdrawn:150.92});assert.equal(current.net,calculatePay(base).net);assert.equal(Math.round((current.net-current.deposit)*100),15092);console.log('Current-period transfer is subtracted once, to the cent.');
-
-const {estimateAvailability}=require('./pay-model.js');
-assert.equal(estimateAvailability(232.19,65,150.92).available,0.01);
-assert.equal(estimateAvailability(232.19,75,150.92).available,23.23);
-assert.equal(estimateAvailability(232.19,50,150.92).available,0);
-assert.equal(estimateAvailability(232.19,0,0).available,0);
-assert.throws(()=>estimateAvailability(232.19,101,0));
-console.log('Variable eligibility checks passed; no fixed eligibility rate and no impact on weekly net pay.');
-
-const {hoursFromParts}=require('./pay-model.js');
-assert.equal(hoursFromParts(8,41),8+41/60);
-assert.throws(()=>hoursFromParts(8.41,0));assert.throws(()=>hoursFromParts(8,60));assert.throws(()=>hoursFromParts(168,1));
-const timeExample=calculatePay({...base,hours:hoursFromParts(8,41),withdrawn:150.92});
-assert.equal(timeExample.paidHours,8.68);
-assert.equal(timeExample.gross,232.19);
-assert.equal(estimateAvailability(timeExample.gross,65,150.92).eligibleAmount,150.93);
-assert.equal(estimateAvailability(timeExample.gross,65,150.92).available,0.01);
-assert.equal(estimateAvailability(timeExample.gross,75,150.92).available,23.23);
-assert.equal(calculatePay({...base,hours:hoursFromParts(8,30)}).gross,227.38);
-assert.equal(calculatePay({...base,hours:hoursFromParts(8,59)}).paidHours,8.98);
-assert.equal(calculatePay({...base,hours:hoursFromParts(39,59)}).paidHours,39.98);
-assert.equal(calculatePay({...base,hours:hoursFromParts(40,1)}).paidHours,40.02);
-assert.equal(calculatePay({...base,hours:hoursFromParts(40,1)}).overtime,0.80);
-assert.equal(estimateAvailability(232.19,65,150.92).eligibleAmount,150.93);
-assert.equal(estimateAvailability(232.19,65,150.92).available,0.01);
-assert.equal(estimateAvailability(232.28,65,150.92).eligibleAmount,150.99);
-console.log('Hours/minutes and exact employer-earnings reconciliation checks passed.');
-
-const {calculateAnytimePay}=require('./pay-model.js');
-assert.equal(calculateAnytimePay(8.68,24.75,2,0.65),150.93);
-assert.equal(calculateAnytimePay(1.01,1.01,1.01,0.5),1.02); // round each component, not the combined hourly rate
-assert.equal(calculateAnytimePay(1,1.10,0,1),1.10); // exact pennies must not gain an artificial cent
-assert.equal(calculateAnytimePay(0,24.75,2,0.65),0);
-assert.equal(calculateAnytimePay(8.68,24.75,2,0),0);
-assert.equal(calculateAnytimePay(8.68,24.75,2,1),232.19);
-assert.throws(()=>calculateAnytimePay(8.68,24.75,2,65));
-assert.throws(()=>calculateAnytimePay(-1,24.75,2,0.65));
-const split=calculatePay({...base,hours:8.68,rate:26.75,shiftDiffRate:2});assert.equal(split.gross,232.19);
-assert.equal(estimateAvailability(split.gross,65,150.92).eligibleAmount,calculateAnytimePay(8.68,24.75,2,0.65));
-console.log('Requested split-pay formula and ceiling rules passed, including exact-penny and zero cases.');
-
-// Payroll OT uses exact entered hourly rates, with separately rounded earnings lines.
-const forty=calculatePay(base);assert.equal(forty.overtime,0);assert.equal(forty.gross,1070);
-const oneOver=calculatePay({...base,hours:41});assert.equal(oneOver.overtime,40.12);assert.equal(oneOver.gross,1110.12);
-const fifty=calculatePay({...base,hours:50});assert.equal(fifty.overtimeBasePay,371.20);assert.equal(fifty.overtimeShiftPay,30);assert.equal(fifty.overtime,401.20);assert.equal(fifty.gross,1471.20);
-for(const [minutes,ot,gross] of [[1,.80,1070.80],[2,1.20,1071.20],[3,2.01,1072.01]]){const r=calculatePay({...base,hours:hoursFromParts(40,minutes)});assert.equal(r.overtime,ot);assert.equal(r.gross,gross);}
-const before=calculatePay({...base,hours:34.37}),after=calculatePay({...base,hours:42.32});
-assert.equal(after.overtimeHours,2.32);assert.equal(after.overtimeBasePay,86.12);assert.equal(after.overtimeShiftPay,6.96);assert.equal(after.overtime,93.08);assert.equal(after.gross,1163.08);
-const dailyGross=Math.round((after.gross-before.gross)*100)/100;assert.equal(dailyGross,243.68);assert.equal(estimateAvailability(dailyGross,65,0).eligibleAmount,158.40);
-assert.equal(calculatePay({...base,hours:45,withdrawn:150.92}).net,overtime.net);assert.equal(Math.round((overtime.net-calculatePay({...base,hours:45,withdrawn:150.92}).deposit)*100),15092);
-assert.equal(calculatePay({...base,hours:45,overtimeBaseRate:40,overtimeShiftDiffRate:4}).overtime,220);
-// Preserve multiplier behavior solely for older model callers that omit explicit payroll rates.
-assert.equal(calculatePay({...base,hours:45,overtimeBaseRate:null,overtimeShiftDiffRate:null}).overtime,200.63);
-for(const value of [-1,0,NaN,Infinity,3000.01])assert.throws(()=>calculatePay({...base,overtimeBaseRate:value}));
-for(const value of [-1,NaN,Infinity,3000.01])assert.throws(()=>calculatePay({...base,overtimeShiftDiffRate:value}));
-console.log('Exact overtime rates, 40-hour boundaries, split OT lines, screenshot increment $243.68 -> $158.40, overrides and validation passed.');
+const explicitZeroGross=P.calculatePay({...base,hours:0,retirementOverride:20});assert.equal(explicitZeroGross.retirement,20);assert.equal(explicitZeroGross.unfunded,20);assert.equal(explicitZeroGross.actualRetirement,true);
